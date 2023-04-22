@@ -1,9 +1,9 @@
 import { RefObject } from 'react'
 
-type Deferred<T> = {
-  resolve: (value: T | PromiseLike<T>) => void
+type Deferred<V> = {
+  resolve: (value: V | PromiseLike<V>) => void
   reject: (reason?: any) => void
-  promise: Promise<T>
+  promise: Promise<V>
 }
 
 export function createDeferred<T>() {
