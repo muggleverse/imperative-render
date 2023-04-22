@@ -1,35 +1,38 @@
-import { RefObject, ReactElement, cloneElement, createRef, ReactComponentElement } from 'react'
+import { ReactElement, cloneElement, createRef, ReactComponentElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createDeferred } from './utils'
+import { createDeferred, createManage } from './utils'
 
-import * as manage from './queue'
-
-export type Instance<R, P> = {
-  ref: RefObject<R>
-  props: P
-  index: number
-  destroy: () => void
-}
+export const manager = createManage()
 
 export function imperativeRender<E extends ReactElement>(element: E, container?: HTMLElement) {
   const ref = createRef<E>()
   const deferred = createDeferred()
   const cloned = cloneElement(element, { ref, deferred })
 
-  let div: any = document.createElement('div')
-  const root = createRoot(div)
+  const wrapper: any = document.createElement('div')
+  const root = createRoot(wrapper)
 
-  const instance = { ref, props: cloned.props, index: manage.nextIndex(), destroy }
+  const instance = { ref, props: cloned.props, index: manager.nextIndex(), destroy, resolve, reject }
 
-  function destroy() {
-    manage.remove(instance) // 1. remove from queue
-    root.unmount() // 2. unmount from wrapper
-    div.remove() // 3. remove wrapper dom
+  function resolve(value) {
+    deferred.resolve(value)
+    destroy()
   }
 
-  ;(container || document.body).appendChild(div) // 1. append wrapper dom
+  function reject(reason) {
+    deferred.reject(reason)
+    destroy()
+  }
+
+  function destroy() {
+    manager.delete(instance) // 1. delete from queue
+    root.unmount() // 2. unmount from wrapper
+    wrapper.remove() // 3. remove wrapper dom
+  }
+
+  ;(container || document.body).appendChild(wrapper) // 1. append wrapper dom
   root.render(cloned) // 2. render to wrapper
-  manage.add(instance) // 3. add to queue
+  manager.add(instance) // 3. add to queue
 
   return instance
 }

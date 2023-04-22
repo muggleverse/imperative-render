@@ -1,3 +1,5 @@
+import { RefObject } from 'react'
+
 type Deferred<T> = {
   resolve: (value: T | PromiseLike<T>) => void
   reject: (reason?: any) => void
@@ -15,4 +17,22 @@ export function createDeferred<T>() {
   return defer
 }
 
-export const collection = new Set()
+const DefaultClearCallback = (instance) => instance.destroy()
+
+export function createManage() {
+  const set = new Set()
+  let index = 1
+  return {
+    add: set.add,
+    delete: set.delete,
+    clear(callback = DefaultClearCallback) {
+      new Set(set).forEach(callback)
+
+      set.clear()
+      index = 1
+    },
+    nextIndex() {
+      return index++
+    },
+  }
+}
