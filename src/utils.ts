@@ -1,5 +1,3 @@
-import { RefObject } from 'react'
-
 type Deferred<V> = {
   resolve: (value: V | PromiseLike<V>) => void
   reject: (reason?: any) => void
