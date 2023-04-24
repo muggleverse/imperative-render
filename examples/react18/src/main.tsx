@@ -3,26 +3,35 @@ import { StrictMode, useState } from 'react'
 
 import { Button, Modal } from 'antd'
 
-import { imperativeRender, asyncImperativeRender } from '../node_modules/imperative-render/src/react'
+import { imperativeRender, asyncImperativeRender, ImperativeRenderProps } from '../node_modules/imperative-render/src/react'
 
-type Props = {
-  resolve: (value: any) => void
-  reject: (reason?: any) => void
-  close: () => void
+type Props = ImperativeRenderProps & {
+  title: string
 }
-
-const CustomModal = ({ resolve, reject, close }: Props) => {
+const CustomModal = ({ controller, title }: Props) => {
   return (
     <Modal
+      title={`${controller.index}. ${title}`}
+      open={controller.active}
       onOk={() => {
-        resolve('ok')
+        controller.resolve('fire onOk')
       }}
       onCancel={() => {
-        reject('cancel')
+        controller.reject('fire onCancel')
       }}
-      afterClose={close}
+      // afterClose={controller.destroy}
     >
       无敌的凯之巨人
+      <Button
+        onClick={async () => {
+          controller.setActive(false)
+          const value = await asyncImperativeRender(CustomModal, { title: 'asyncImperativeRender modal' })
+          console.info('imperativeRender', value)
+          controller.setActive(true)
+        }}
+      >
+        自由
+      </Button>
     </Modal>
   )
 }
@@ -30,8 +39,27 @@ const CustomModal = ({ resolve, reject, close }: Props) => {
 function App() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
-      <Button onClick={() => {}}>imperativeRender modal</Button>
-      <Button onClick={() => {}}>asyncImperativeRender modal</Button>
+      <Button
+        onClick={() => {
+          const instance = imperativeRender(CustomModal, { title: 'imperativeRender modal' })
+          console.log('imperativeRender', instance)
+          instance.promise.then(console.info).catch(console.warn)
+        }}
+      >
+        imperativeRender modal
+      </Button>
+      <Button
+        onClick={async () => {
+          try {
+            const value = await asyncImperativeRender(CustomModal, { title: 'asyncImperativeRender modal' })
+            console.info('imperativeRender', value)
+          } catch (error) {
+            console.warn('imperativeRender', error)
+          }
+        }}
+      >
+        asyncImperativeRender modal
+      </Button>
     </div>
   )
 }

@@ -17,12 +17,16 @@ export function createDeferred<T>() {
 
 const DefaultClearCallback = (instance) => instance.destroy()
 
-export function createManage() {
+export function createManager() {
   const set = new Set()
   let index = 1
   return {
-    add: set.add,
-    delete: set.delete,
+    add(value) {
+      set.add(value)
+    },
+    delete(value) {
+      set.delete(value)
+    },
     clear(callback = DefaultClearCallback) {
       new Set(set).forEach(callback)
 
@@ -34,3 +38,16 @@ export function createManage() {
     },
   }
 }
+
+type RestFunc<R> = (...args) => R
+export function compose<R>(f1: RestFunc<R>, ...funcs: RestFunc<R>[]): RestFunc<R> {
+  if (funcs.length === 0) {
+    return f1
+  }
+
+  return funcs.reduce((acc, cur) => {
+    return (...args) => acc(cur(...args))
+  }, f1)
+}
+
+export const _nextTick = requestIdleCallback || setTimeout
