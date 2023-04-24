@@ -68,6 +68,17 @@ export type ImperativeRenderController<DeferredValue = any> = {
    * the index of component in queue. Is increasing, but not necessarily continuous
    */
   index: number
+
+  /**
+   * Deactivate first, then call Promise/AsyncFunction, and activate at the end.
+   * The `pipe` method may help you in nested situations.
+   * @param apromise
+   * @example
+   * const controller = imperativeRender(YourComponent, { title: 'first' })
+   * controller.pipe(asyncImperativeRender(YourComponent, { title: 'second' }))
+   * controller.pipe(asyncImperativeRender(YourComponent, { title: 'third' }))
+   */
+  pipe: (apromise: (() => PromiseLike<DeferredValue>) | PromiseLike<DeferredValue>) => PromiseLike<DeferredValue>
 }
 
 /**
@@ -112,9 +123,11 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
   }
 
   function create() {
-    opt.container.appendChild(el) // 1. append wrapper dom
-    root.render(createElement(HOC)) // 2. render to wrapper
-    manager.add(controller) // 3. add to queue
+    _nextTick(() => {
+      opt.container.appendChild(el) // 1. append wrapper dom
+      root.render(createElement(HOC)) // 2. render to wrapper
+      manager.add(controller) // 3. add to queue
+    })
   }
 
   function HOC() {
@@ -127,6 +140,12 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
       setActive,
       resolve: compose(inactivated, resolve),
       reject: compose(inactivated, reject),
+      pipe: (apromise) => {
+        setActive(false)
+        if (typeof apromise === 'function') apromise = apromise()
+
+        return apromise.finally(() => setActive(true))
+      },
     })
 
     return createElement(Comp, { ...props, controller } as any)

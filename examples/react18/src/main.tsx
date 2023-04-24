@@ -8,7 +8,7 @@ import { imperativeRender, asyncImperativeRender, ImperativeRenderProps } from '
 type Props = ImperativeRenderProps & {
   title: string
 }
-const CustomModal = ({ controller, title }: Props) => {
+const YourComponent = ({ controller, title }: Props) => {
   return (
     <Modal
       title={`${controller.index}. ${title}`}
@@ -24,10 +24,8 @@ const CustomModal = ({ controller, title }: Props) => {
       无敌的凯之巨人
       <Button
         onClick={async () => {
-          controller.setActive(false)
-          const value = await asyncImperativeRender(CustomModal, { title: 'asyncImperativeRender modal' })
-          console.info('imperativeRender', value)
-          controller.setActive(true)
+          const r = await controller.pipe(asyncImperativeRender(YourComponent, { title: 'asyncImperativeRender modal' }))
+          console.log('r', r)
         }}
       >
         自由
@@ -36,12 +34,16 @@ const CustomModal = ({ controller, title }: Props) => {
   )
 }
 
+const controller = imperativeRender(YourComponent, { title: 'first' })
+controller.pipe(asyncImperativeRender(YourComponent, { title: 'second' }))
+controller.pipe(asyncImperativeRender(YourComponent, { title: 'third' }))
+
 function App() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
       <Button
         onClick={() => {
-          const instance = imperativeRender(CustomModal, { title: 'imperativeRender modal' })
+          const instance = imperativeRender(YourComponent, { title: 'imperativeRender modal' })
           console.log('imperativeRender', instance)
           instance.promise.then(console.info).catch(console.warn)
         }}
@@ -51,7 +53,7 @@ function App() {
       <Button
         onClick={async () => {
           try {
-            const value = await asyncImperativeRender(CustomModal, { title: 'asyncImperativeRender modal' })
+            const value = await asyncImperativeRender(YourComponent, { title: 'asyncImperativeRender modal' })
             console.info('imperativeRender', value)
           } catch (error) {
             console.warn('imperativeRender', error)
