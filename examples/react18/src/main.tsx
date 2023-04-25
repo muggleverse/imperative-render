@@ -1,9 +1,13 @@
 import ReactDOM from 'react-dom/client'
-import { StrictMode, useState } from 'react'
+import { StrictMode } from 'react'
 
 import { Button, Modal } from 'antd'
 
-import { imperativeRender, asyncImperativeRender, ImperativeRenderProps } from '../node_modules/imperative-render/src/react'
+import {
+  imperativeRender,
+  asyncImperativeRender,
+  ImperativeRenderProps,
+} from '../node_modules/imperative-render/src/react'
 
 type Props = ImperativeRenderProps & {
   title: string
@@ -24,7 +28,9 @@ const YourComponent = ({ controller, title }: Props) => {
       无敌的凯之巨人
       <Button
         onClick={async () => {
-          const r = await controller.pipe(asyncImperativeRender(YourComponent, { title: 'asyncImperativeRender modal' }))
+          const r = await controller.waitUntil(
+            asyncImperativeRender(YourComponent, { title: 'asyncImperativeRender modal' }),
+          )
           console.log('r', r)
         }}
       >
@@ -33,10 +39,6 @@ const YourComponent = ({ controller, title }: Props) => {
     </Modal>
   )
 }
-
-const controller = imperativeRender(YourComponent, { title: 'first' })
-controller.pipe(asyncImperativeRender(YourComponent, { title: 'second' }))
-controller.pipe(asyncImperativeRender(YourComponent, { title: 'third' }))
 
 function App() {
   return (
@@ -52,12 +54,8 @@ function App() {
       </Button>
       <Button
         onClick={async () => {
-          try {
-            const value = await asyncImperativeRender(YourComponent, { title: 'asyncImperativeRender modal' })
-            console.info('imperativeRender', value)
-          } catch (error) {
-            console.warn('imperativeRender', error)
-          }
+          const value = await asyncImperativeRender(YourComponent, { title: 'asyncImperativeRender modal' })
+          console.info('imperativeRender', value)
         }}
       >
         asyncImperativeRender modal

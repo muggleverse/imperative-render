@@ -1,6 +1,6 @@
 import { ComponentType, createElement, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { _nextTick, compose, createDeferred, createManager } from './utils'
+import { _nextTick, compose, createDeferred, createManager, foo } from './utils'
 
 /**
  * manager for ImperativeRender, use it to clear all active components
@@ -35,17 +35,15 @@ export type ImperativeRenderProps<DeferredValue = any> = {
 }
 
 export type ImperativeRenderController<DeferredValue = any> = {
+  promise: Promise<DeferredValue>
+
   /**
    * resolve the promise with value
-   * @param {DeferredValue} [value]
-   * @example resolve('ok')
    */
   resolve: (value: DeferredValue | PromiseLike<DeferredValue>) => void
 
   /**
    * reject the promise with reason
-   * @param {any} [reason]
-   * @example reject('error')
    */
   reject: (reason?: any) => void
 
@@ -56,6 +54,8 @@ export type ImperativeRenderController<DeferredValue = any> = {
 
   /**
    * set active state, this will trigger re-render
+   *
+   * @see You must wait until YourComponent is rendered before you can use it !!!
    */
   setActive: React.Dispatch<React.SetStateAction<boolean>>
 
@@ -70,15 +70,16 @@ export type ImperativeRenderController<DeferredValue = any> = {
   index: number
 
   /**
-   * Deactivate first, then call Promise/AsyncFunction, and activate at the end.
-   * The `pipe` method may help you in nested situations.
-   * @param apromise
+   * Deactivate first, then call Promise/AsyncFunction, and activate at the end. May help you in nested situations,
+   *
+   * @see You must wait until YourComponent is rendered before you can use it !!!
    * @example
-   * const controller = imperativeRender(YourComponent, { title: 'first' })
-   * controller.pipe(asyncImperativeRender(YourComponent, { title: 'second' }))
-   * controller.pipe(asyncImperativeRender(YourComponent, { title: 'third' }))
+   * const controller = imperativeRender(YourComponent, { name: 'first' })
+   * setTimeout(async () => {
+   *  const value = await controller.waitUntil(asyncImperativeRender(YourComponent, { name: 'second' }))
+   * }, 1000)
    */
-  pipe: (apromise: (() => PromiseLike<DeferredValue>) | PromiseLike<DeferredValue>) => PromiseLike<DeferredValue>
+  waitUntil: (apromise: (() => PromiseLike<DeferredValue>) | PromiseLike<DeferredValue>) => PromiseLike<DeferredValue>
 }
 
 /**
@@ -106,7 +107,18 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
   const el = document.createElement('div')
   const root = createRoot(el)
 
-  const controller = { props, promise, resolve, reject, destroy, create, active: true, index: manager.nextIndex() }
+  const controller = {
+    props,
+    promise,
+    resolve,
+    reject,
+    destroy,
+    create,
+    active: true,
+    setActive: foo as any,
+    waitUntil: foo as any,
+    index: manager.nextIndex(),
+  } as ImperativeRenderController<DeferredValue>
 
   function destroy() {
     /**
@@ -116,18 +128,16 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
      * React cannot finish unmounting the root until the current render has completed, which may lead to a race condition.
      */
     _nextTick(() => {
-      manager.delete(controller) // 1. delete from queue
-      root.unmount() // 2. unmount from wrapper
-      opt.container.removeChild(el) // 3. remove wrapper dom
+      manager.delete(controller)
+      root.unmount()
+      opt.container.removeChild(el)
     })
   }
 
   function create() {
-    _nextTick(() => {
-      opt.container.appendChild(el) // 1. append wrapper dom
-      root.render(createElement(HOC)) // 2. render to wrapper
-      manager.add(controller) // 3. add to queue
-    })
+    opt.container.appendChild(el)
+    root.render(createElement(HOC))
+    manager.add(controller)
   }
 
   function HOC() {
@@ -140,10 +150,10 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
       setActive,
       resolve: compose(inactivated, resolve),
       reject: compose(inactivated, reject),
-      pipe: (apromise) => {
+      waitUntil: (apromise) => {
         setActive(false)
-        if (typeof apromise === 'function') apromise = apromise()
 
+        if (typeof apromise === 'function') apromise = apromise()
         return apromise.finally(() => setActive(true))
       },
     })

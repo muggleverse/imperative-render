@@ -26,6 +26,7 @@ export function createManager() {
     },
     delete(value) {
       set.delete(value)
+      if (set.size === 0) index = 1
     },
     clear(callback = DefaultClearCallback) {
       new Set(set).forEach(callback)
@@ -51,3 +52,5 @@ export function compose<R>(f1: RestFunc<R>, ...funcs: RestFunc<R>[]): RestFunc<R
 }
 
 export const _nextTick = requestIdleCallback || setTimeout
+
+export const foo = () => void 0
