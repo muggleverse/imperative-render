@@ -26,6 +26,7 @@ export function createManager() {
     },
     delete(value) {
       set.delete(value)
+      console.log('delete', value, set.size)
       if (set.size === 0) index = 1
     },
     clear(callback = DefaultClearCallback) {
@@ -51,54 +52,11 @@ export function compose<R>(f1: RestFunc<R>, ...funcs: RestFunc<R>[]): RestFunc<R
   }, f1)
 }
 
-export const _nextTick = requestIdleCallback || setTimeout
+export const inactivatedUntilPromise = (inactivatedUntilPromise, setActive) => {
+  setActive(false)
+
+  if (typeof inactivatedUntilPromise === 'function') inactivatedUntilPromise = inactivatedUntilPromise()
+  return inactivatedUntilPromise.finally(() => setActive(true))
+}
 
 export const foo = () => void 0
-
-/**
- * Extra Props From ImperativeRender, can help you define your own type
- */
-export type ImperativeRenderProps<DeferredValue = any> = {
-  controller?: ImperativeRenderController<DeferredValue>
-}
-
-export type ImperativeRenderController<DeferredValue = any, SetActive extends any = (value: boolean) => void> = {
-  promise: Promise<DeferredValue>
-
-  /**
-   * resolve the promise with value
-   */
-  resolve: (value: DeferredValue | PromiseLike<DeferredValue>) => void
-
-  /**
-   * reject the promise with reason
-   */
-  reject: (reason?: any) => void
-
-  /**
-   * destroy the component
-   */
-  destroy: () => void
-
-  /**
-   * set active state, this will trigger re-render
-   *
-   * @see You must wait until YourComponent is rendered before you can use it !!!
-   */
-  setActive: SetActive
-
-  /**
-   * whether the component is activated
-   */
-  active: boolean
-
-  /**
-   * the index of component in queue. Is increasing, but not necessarily continuous
-   */
-  index: number
-
-  /**
-   * Deactivate first, then call Promise/AsyncFunction, and activate at the end. May help you in nested situations,
-   */
-  waitUntil: (apromise: (() => PromiseLike<DeferredValue>) | PromiseLike<DeferredValue>) => PromiseLike<DeferredValue>
-}

@@ -1,16 +1,6 @@
-import { createApp, defineComponent, h, ref, Component, VNodeProps, AllowedComponentProps } from 'vue'
+import { createApp, defineComponent, h, ref, Component, Ref } from 'vue'
 
-import {
-  _nextTick,
-  compose,
-  createDeferred,
-  createManager,
-  foo,
-  ImperativeRenderController,
-  ImperativeRenderProps,
-} from './utils'
-
-export type { ImperativeRenderController, ImperativeRenderProps }
+import { compose, createDeferred, createManager, foo, inactivatedUntilPromise } from './utils'
 
 /**
  * manager for ImperativeRender, use it to clear all active components
@@ -22,15 +12,8 @@ export const manager = createManager()
 export type ImperativeRenderOption = {
   /**
    * where to append wrapper dom
-   * @default document.body
-   * @example document.getElementById('app')
    */
   container?: HTMLElement
-
-  /**
-   * manually control destroy/create
-   */
-  manual?: boolean
 }
 
 const DefaultOption = {
@@ -41,16 +24,8 @@ const DefaultOption = {
  * Imperative render YourComponent to DOM, and return a controller.
  * You can use the controller to resolve/reject the promise, or destroy the component.
  * YourComponent not only receive props from params, but also receive extra props: resolve/reject/destroy/active/index.
- *
- * @param Comp Rendered YourComponent
- * @param props Props of Component
- * @param {ImperativeRenderOption} option
- *
- * @example
- * const controller = imperativeRender(YourComponent, { name: 'imperativeRender' })
- * const { promise, resolve, reject, destroy, props, index } = controller
  */
-export function imperativeRender<DeferredValue extends any, Props extends ImperativeRenderProps<DeferredValue>>(
+export function imperativeRender<DeferredValue extends any, Props extends {}>(
   Comp: Component<Props>,
   props?: Props,
   option?: ImperativeRenderOption,
@@ -66,11 +41,13 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
     reject,
     destroy,
     create,
-    active: true,
-    setActive: foo as any,
-    waitUntil: foo as any,
+    active: foo as unknown as Ref<boolean>,
+    setActive: foo as (value: boolean) => void,
+    waitUntil: foo as unknown as (
+      apromise: (() => PromiseLike<DeferredValue>) | PromiseLike<DeferredValue>,
+    ) => PromiseLike<DeferredValue>,
     index: manager.nextIndex(),
-  } as ImperativeRenderController<DeferredValue>
+  }
 
   const HOC = defineComponent(() => {
     const active = ref(true)
@@ -88,32 +65,21 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
       setActive,
       resolve: compose(inactivated, resolve),
       reject: compose(inactivated, reject),
-      waitUntil: (apromise) => {
-        setActive(false)
-
-        if (typeof apromise === 'function') apromise = apromise()
-        return apromise.finally(() => setActive(true))
-      },
+      waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
     })
 
-    return h(Comp, { ...props, controller } as any)
+    return () => h(Comp, Object.assign({}, props, { controller }))
   })
 
   const el = document.createElement('div')
   const root = createApp(HOC)
 
   function destroy() {
-    /**
-     * _nextTick is used to avoid the following warning:
-     *
-     * Warning: Attempted to synchronously unmount a root while React was already rendering.
-     * React cannot finish unmounting the root until the current render has completed, which may lead to a race condition.
-     */
-    _nextTick(() => {
+    setTimeout(() => {
       manager.delete(controller)
       root.unmount()
       opt.container.removeChild(el)
-    })
+    }, 180)
   }
 
   function create() {
@@ -130,18 +96,20 @@ export function imperativeRender<DeferredValue extends any, Props extends Impera
 /**
  * Imperative render YourComponent to DOM, and return a promise only.
  * YourComponent not only receive props from params, but also receive extra props: resolve/reject/destroy/active/index.
- *
- * @param Comp Rendered YourComponent
- * @param props Props of Component
- * @param {ImperativeRenderOption} option
- *
- * @example
- * asyncImperativeRender(YourComponent, { name: 'imperativeRender' }).then(console.log).catch(console.error)
  */
-export function asyncImperativeRender<DeferredValue extends any, Props extends ImperativeRenderProps<DeferredValue>>(
+export function asyncImperativeRender<DeferredValue extends any, Props extends {}>(
   Comp: Component<Props>,
   props?: Props,
   option?: ImperativeRenderOption,
 ) {
   return imperativeRender<DeferredValue, Props>(Comp, props, option).promise
+}
+
+export type ImperativeRenderController<DeferredValue> = ReturnType<typeof imperativeRender>
+
+/**
+ * Extra Props From ImperativeRender, can help you define your own type
+ */
+export type ImperativeRenderProps<DeferredValue = any> = {
+  controller: ImperativeRenderController<DeferredValue>
 }
