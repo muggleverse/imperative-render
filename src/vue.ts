@@ -1,10 +1,37 @@
 import { createApp, defineComponent, h, ref, Component, Ref } from 'vue'
 
-import { attachCreateAndDestoryToController, compose, createDeferred, foo, inactivatedUntilPromise } from './utils'
+import { attachCreateAndDestoryToController, compose, foo, inactivatedUntilPromise } from './utils'
 import type { WaitUntil } from './utils'
-import { DefaultOption, ImperativeRenderOption } from './option'
+import { implement, ImperativeRenderOption } from './core'
 
-export { manager } from './option'
+export { manager } from './core'
+export type { ImperativeRenderOption } from './core'
+
+const HOC = defineComponent({
+  props: ['Comp', 'controller', 'impl', 'p'],
+
+  setup({ Comp, controller, impl, p }) {
+    const active = ref(true)
+
+    const setActive = (value) => {
+      active.value = value
+    }
+
+    const inactivated = () => {
+      active.value = false
+    }
+
+    Object.assign(controller, {
+      active,
+      setActive,
+      resolve: compose(inactivated, impl.resolve),
+      reject: compose(inactivated, impl.reject),
+      waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
+    })
+
+    return () => h(Comp, p)
+  },
+})
 
 /**
  * Imperative render YourComponent to DOM, and return a controller.
@@ -16,47 +43,21 @@ export function imperativeRender<DeferredValue extends any, Props extends {} = {
   props?: Props,
   option?: ImperativeRenderOption,
 ) {
-  const opt = { ...DefaultOption, ...option }
-
-  const { promise, resolve, reject } = createDeferred<DeferredValue>()
+  const { impl, opt } = implement<DeferredValue>(option)
 
   const controller = {
-    props,
-    promise,
-    resolve,
-    reject,
+    ...impl,
+    active: foo as unknown as Ref<boolean>,
     destroy: foo,
     create: foo,
-    active: foo as unknown as Ref<boolean>,
     setActive: foo as (value: boolean) => void,
     waitUntil: foo as unknown as WaitUntil<DeferredValue>,
-    index: opt.manager.nextIndex(),
   }
 
-  const HOC = defineComponent(() => {
-    const active = ref(true)
-
-    const setActive = (value: boolean) => {
-      active.value = value
-    }
-
-    const inactivated = () => {
-      active.value = false
-    }
-
-    Object.assign(controller, {
-      active,
-      setActive,
-      resolve: compose(inactivated, resolve),
-      reject: compose(inactivated, reject),
-      waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
-    })
-
-    return () => h(Comp, Object.assign({}, props, { controller }))
-  })
+  const p = Object.assign({}, props, { controller })
 
   attachCreateAndDestoryToController(controller, opt, ($el) => {
-    const root = createApp(HOC)
+    const root = createApp(HOC, { Comp, controller, impl, p })
     root.mount($el)
 
     return () => root.unmount()

@@ -1,60 +1,49 @@
 import { ComponentType, createElement, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { attachCreateAndDestoryToController, compose, createDeferred, foo, inactivatedUntilPromise } from './utils'
+import { attachCreateAndDestoryToController, compose, foo, inactivatedUntilPromise } from './utils'
 import type { WaitUntil } from './utils'
-import { DefaultOption, ImperativeRenderOption } from './option'
+import { implement, ImperativeRenderOption } from './core'
 
-export { manager } from './option'
+export { manager } from './core'
+export type { ImperativeRenderOption } from './core'
 
-/**
- * Imperative render YourComponent to DOM, and return a controller.
- * You can use the controller to resolve/reject the promise, or destroy the component.
- * YourComponent not only receive props from params, but also receive extra props: resolve/reject/destroy/active/index.
- *
- * @tips Please call destroy actively, otherwise it will cause memory leak
- */
+function HOC({ Comp, controller, impl, p }) {
+  const [active, setActive] = useState(true)
+
+  const inactivated = () => setActive(false)
+
+  Object.assign(controller, {
+    active,
+    setActive,
+    resolve: compose(inactivated, impl.resolve),
+    reject: compose(inactivated, impl.reject),
+    waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
+  })
+
+  return createElement(Comp, p)
+}
+
 export function imperativeRender<DeferredValue extends any, Props extends {}>(
   Comp: ComponentType<Props>,
   props?: Omit<Props, 'controller'>,
   option?: ImperativeRenderOption,
 ) {
-  const opt = { ...DefaultOption, ...option }
-
-  const { promise, resolve, reject } = createDeferred<DeferredValue>()
+  const { impl, opt } = implement<DeferredValue>(option)
 
   const controller = {
-    props,
-    promise,
-    resolve,
-    reject,
+    ...impl,
     destroy: foo,
     create: foo,
-    active: true,
     setActive: foo as React.Dispatch<React.SetStateAction<boolean>>,
-    waitUntil: foo as unknown as WaitUntil<DeferredValue>,
-    index: opt.manager.nextIndex(),
+    waitUntil: foo as WaitUntil<DeferredValue>,
   }
 
-  function HOC() {
-    const [active, setActive] = useState(true)
-
-    const inactivated = () => setActive(false)
-
-    Object.assign(controller, {
-      active,
-      setActive,
-      resolve: compose(inactivated, resolve),
-      reject: compose(inactivated, reject),
-      waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
-    })
-
-    return createElement(Comp, { ...props, controller } as any)
-  }
+  const p = Object.assign({}, props, { controller }) as unknown as Props
 
   attachCreateAndDestoryToController(controller, opt, ($el) => {
     const root = createRoot($el)
-    root.render(createElement(HOC))
+    root.render(createElement(HOC, { Comp, controller, impl, p }))
 
     return () => root.unmount()
   })
