@@ -1,12 +1,12 @@
 import { createApp, defineComponent } from 'vue'
 
-import { imperativeRender, asyncImperativeRender } from '../node_modules/imperative-render/src/vue'
-import type { ImperativeRenderController } from '../node_modules/imperative-render/src/vue'
+import { imperativeRender, asyncImperativeRender } from './node_modules/imperative-render/src/vue'
+import type { ImperativeRenderController } from './node_modules/imperative-render/src/vue'
 import { NButton, NCard, NModal } from 'naive-ui'
 
 const YourComponent = defineComponent({
   props: {
-    controller: Object as () => ImperativeRenderController,
+    controller: Object as () => ImperativeRenderController<string>,
     title: String,
   },
   setup(props) {

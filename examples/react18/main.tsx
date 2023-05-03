@@ -7,7 +7,7 @@ import {
   imperativeRender,
   asyncImperativeRender,
   ImperativeRenderProps,
-} from '../node_modules/imperative-render/src/react'
+} from './node_modules/imperative-render/src/react'
 
 type Props = ImperativeRenderProps & {
   title: string

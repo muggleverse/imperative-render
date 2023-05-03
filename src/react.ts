@@ -1,74 +1,18 @@
 import { ComponentType, createElement, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { compose, createDeferred, createManager, foo, inactivatedUntilPromise } from './utils'
+import { attachCreateAndDestoryToController, compose, createDeferred, foo, inactivatedUntilPromise } from './utils'
+import type { WaitUntil } from './utils'
+import { DefaultOption, ImperativeRenderOption } from './option'
 
-/**
- * Extra Props From ImperativeRender, can help you define your own type
- */
-export type ImperativeRenderProps<DeferredValue = any> = {
-  controller: ImperativeRenderController<DeferredValue>
-}
-
-export type ImperativeRenderController<DeferredValue = any> = {
-  promise: Promise<DeferredValue>
-
-  /**
-   * resolve the promise with value
-   */
-  resolve: (value: DeferredValue | PromiseLike<DeferredValue>) => void
-
-  /**
-   * reject the promise with reason
-   */
-  reject: (reason?: any) => void
-
-  /**
-   * destroy the component
-   */
-  destroy: () => void
-
-  /**
-   * set active state, this will trigger re-render, You must wait until YourComponent is rendered before you can use it !!!
-   */
-  setActive: React.Dispatch<React.SetStateAction<boolean>>
-
-  /**
-   * whether the component is activated
-   */
-  active: boolean
-
-  /**
-   * the index of component in queue. Is increasing, but not necessarily continuous
-   */
-  index: number
-
-  /**
-   * Deactivate first, then call Promise/AsyncFunction, and activate at the end. May help you in nested situations,
-   */
-  waitUntil: (apromise: (() => PromiseLike<DeferredValue>) | PromiseLike<DeferredValue>) => PromiseLike<DeferredValue>
-}
-
-/**
- * manager for ImperativeRender, use it to clear all active components
- */
-export const manager = createManager()
-
-export type ImperativeRenderOption = {
-  /**
-   * where to append wrapper dom
-   */
-  container?: HTMLElement
-}
-
-const DefaultOption = {
-  container: document.body,
-}
+export { manager } from './option'
 
 /**
  * Imperative render YourComponent to DOM, and return a controller.
  * You can use the controller to resolve/reject the promise, or destroy the component.
  * YourComponent not only receive props from params, but also receive extra props: resolve/reject/destroy/active/index.
+ *
+ * @tips Please call destroy actively, otherwise it will cause memory leak
  */
 export function imperativeRender<DeferredValue extends any, Props extends {}>(
   Comp: ComponentType<Props>,
@@ -84,13 +28,13 @@ export function imperativeRender<DeferredValue extends any, Props extends {}>(
     promise,
     resolve,
     reject,
-    destroy,
-    create,
+    destroy: foo,
+    create: foo,
     active: true,
-    setActive: foo as any,
-    waitUntil: foo as any,
-    index: manager.nextIndex(),
-  } as ImperativeRenderController<DeferredValue>
+    setActive: foo as React.Dispatch<React.SetStateAction<boolean>>,
+    waitUntil: foo as unknown as WaitUntil<DeferredValue>,
+    index: opt.manager.nextIndex(),
+  }
 
   function HOC() {
     const [active, setActive] = useState(true)
@@ -108,30 +52,14 @@ export function imperativeRender<DeferredValue extends any, Props extends {}>(
     return createElement(Comp, { ...props, controller } as any)
   }
 
-  const el = document.createElement('div')
-  const root = createRoot(el)
-
-  function destroy() {
-    /**
-     * setTimeout is used to avoid the following warning:
-     *
-     * Warning: Attempted to synchronously unmount a root while React was already rendering.
-     * React cannot finish unmounting the root until the current render has completed, which may lead to a race condition.
-     */
-    setTimeout(() => {
-      manager.delete(controller)
-      root.unmount()
-      opt.container.removeChild(el)
-    }, 180)
-  }
-
-  function create() {
-    opt.container.appendChild(el)
+  attachCreateAndDestoryToController(controller, opt, ($el) => {
+    const root = createRoot($el)
     root.render(createElement(HOC))
-    manager.add(controller)
-  }
 
-  create()
+    return () => root.unmount()
+  })
+
+  controller.create()
 
   return controller
 }
@@ -139,11 +67,28 @@ export function imperativeRender<DeferredValue extends any, Props extends {}>(
 /**
  * Imperative render YourComponent to DOM, and return a promise only.
  * YourComponent not only receive props from params, but also receive extra props: resolve/reject/destroy/active/index.
+ *
+ * @tips Automatically destroyed after the promise finally
  */
 export function asyncImperativeRender<DeferredValue extends any, Props extends {}>(
   Comp: ComponentType<Props>,
   props?: Omit<Props, 'controller'>,
   option?: ImperativeRenderOption,
 ) {
-  return imperativeRender<DeferredValue, Props>(Comp, props, option).promise
+  const controller = imperativeRender<DeferredValue, Props>(Comp, props, option)
+
+  controller.promise.finally(controller.destroy)
+
+  return controller.promise
+}
+
+export type ImperativeRenderController<DeferredValue extends any = any, Props extends {} = {}> = ReturnType<
+  typeof imperativeRender<DeferredValue, Props>
+>
+
+/**
+ * Extra Props From ImperativeRender, can help you define your own type
+ */
+export type ImperativeRenderProps<DeferredValue extends any = any, Props extends {} = {}> = {
+  controller: ImperativeRenderController<DeferredValue, Props>
 }
