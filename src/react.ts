@@ -1,14 +1,14 @@
 import { ComponentType, createElement, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { attachCreateAndDestoryToController, compose, foo, inactivatedUntilPromise } from './utils'
+import { compose, foo, inactivatedUntilPromise } from './utils'
 import type { WaitUntil } from './utils'
-import { implement, ImperativeRenderOption } from './core'
+import { implement, attachCreateAndDestoryToController, ImperativeRenderOption } from './core'
 
 export { manager } from './core'
 export type { ImperativeRenderOption } from './core'
 
-function HOC({ Comp, controller, impl, p }) {
+function Hoc({ Comp, option, controller, impl, p }) {
   const [active, setActive] = useState(true)
 
   const inactivated = () => setActive(false)
@@ -21,15 +21,17 @@ function HOC({ Comp, controller, impl, p }) {
     waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
   })
 
-  return createElement(Comp, p)
+  const children = createElement(Comp, p)
+
+  return option.provider ? createElement(option.provider, { children }) : children
 }
 
 export function imperativeRender<DeferredValue extends any, Props extends {}>(
   Comp: ComponentType<Props>,
   props?: Omit<Props, 'controller'>,
-  option?: ImperativeRenderOption,
+  opt?: ImperativeRenderOption,
 ) {
-  const { impl, opt } = implement<DeferredValue>(option)
+  const { impl, option } = implement<DeferredValue>(opt)
 
   const controller = {
     ...impl,
@@ -41,9 +43,9 @@ export function imperativeRender<DeferredValue extends any, Props extends {}>(
 
   const p = Object.assign({}, props, { controller }) as unknown as Props
 
-  attachCreateAndDestoryToController(controller, opt, ($el) => {
+  attachCreateAndDestoryToController(controller, option, ($el) => {
     const root = createRoot($el)
-    root.render(createElement(HOC, { Comp, controller, impl, p }))
+    root.render(createElement(Hoc, { Comp, option, controller, impl, p }))
 
     return () => root.unmount()
   })

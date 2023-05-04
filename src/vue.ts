@@ -1,16 +1,16 @@
 import { createApp, defineComponent, h, ref, Component, Ref } from 'vue'
 
-import { attachCreateAndDestoryToController, compose, foo, inactivatedUntilPromise } from './utils'
+import { compose, foo, inactivatedUntilPromise } from './utils'
 import type { WaitUntil } from './utils'
-import { implement, ImperativeRenderOption } from './core'
+import { implement, attachCreateAndDestoryToController, ImperativeRenderOption } from './core'
 
 export { manager } from './core'
 export type { ImperativeRenderOption } from './core'
 
-const HOC = defineComponent({
-  props: ['Comp', 'controller', 'impl', 'p'],
+const Hoc = defineComponent({
+  props: ['Comp', 'option', 'controller', 'impl', 'p'],
 
-  setup({ Comp, controller, impl, p }) {
+  setup({ Comp, option, controller, impl, p }) {
     const active = ref(true)
 
     const setActive = (value) => {
@@ -29,7 +29,11 @@ const HOC = defineComponent({
       waitUntil: (apromise) => inactivatedUntilPromise(apromise, setActive),
     })
 
-    return () => h(Comp, p)
+    return () => {
+      const children = h(Comp, p)
+
+      return option.provider ? h(option.provider, null, { default: () => children }) : children
+    }
   },
 })
 
@@ -41,9 +45,9 @@ const HOC = defineComponent({
 export function imperativeRender<DeferredValue extends any, Props extends {} = {}>(
   Comp: Component<Props>,
   props?: Props,
-  option?: ImperativeRenderOption,
+  opt?: ImperativeRenderOption,
 ) {
-  const { impl, opt } = implement<DeferredValue>(option)
+  const { impl, option } = implement<DeferredValue>(opt)
 
   const controller = {
     ...impl,
@@ -56,8 +60,8 @@ export function imperativeRender<DeferredValue extends any, Props extends {} = {
 
   const p = Object.assign({}, props, { controller })
 
-  attachCreateAndDestoryToController(controller, opt, ($el) => {
-    const root = createApp(HOC, { Comp, controller, impl, p })
+  attachCreateAndDestoryToController(controller, option, ($el) => {
+    const root = createApp(Hoc, { Comp, option, controller, impl, p })
     root.mount($el)
 
     return () => root.unmount()
